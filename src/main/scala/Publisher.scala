@@ -1,5 +1,7 @@
 import com.rabbitmq.client.ConnectionFactory
+
 import scala.io.StdIn
+import scala.util.{Failure, Success, Try, Using}
 
 object Publisher {
   private val QUEUE_NAME = "queue"
@@ -8,30 +10,32 @@ object Publisher {
     val factory = new ConnectionFactory()
     factory.setHost("localhost")
     factory.setPort(5672)
-    factory.setUsername("admin")
-    factory.setPassword("Dilshan@123")
+    factory.setUsername("guest")
+    factory.setPassword("guest")
 
+    Try(factory.newConnection()) match {
+      case Success(connection) =>
+        Using(connection.createChannel()) { channel =>
+          channel.queueDeclare(QUEUE_NAME, false, false, false, null)
 
-      val connection = factory.newConnection()
-      val channel = connection.createChannel()
+          var message: String = ""
+          println("Type message that you want to send and type 'x' when you need to exit")
 
-      channel.queueDeclare(QUEUE_NAME, false, false, false, null)
-
-      var message: String = ""
-
-      println("Type message that you want to send and type 'x' when you need to exit")
-
-      Thread.sleep(1000)
-
-      while (message != "x") {
-        message = StdIn.readLine("Enter Message to send: ")
-        if (message != "done") {
-          channel.basicPublish("", QUEUE_NAME, null, message.getBytes("UTF-8"))
-          println("Sent to Queue")
+          while (message != "x") {
+            message = StdIn.readLine("Enter Message to send: ")
+            if (message != "x" && message.nonEmpty) {
+              Try(channel.basicPublish("", QUEUE_NAME, null, message.getBytes("UTF-8"))) match {
+                case Success(_) => println("Sent")
+                case Failure(exception) => println(exception.getMessage)
+              }
+            }
+          }
+        } match {
+          case Success(_) =>
+          case Failure(exception) => println(exception.getMessage)
         }
-      }
-      if (channel != null) channel.close()
-      if (connection != null) connection.close()
 
+      case Failure(exception) => println(exception.getMessage)
+    }
   }
 }
